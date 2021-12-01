@@ -125,7 +125,7 @@ namespace PaymentAPI.Controllers
                 return NotFound(new ResponseResult()
                 {
                     Success = false,
-                    Method = "Search",
+                    Method = "Delete",
                     Errors = "data with id " + id + " not found"
                 });
             }
