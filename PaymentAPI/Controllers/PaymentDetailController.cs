@@ -29,41 +29,76 @@ namespace PaymentAPI.Controllers
         }
 
         [HttpPost]
-        public async Task<ActionResult> CreateItem(ItemData data)
+        public async Task<ActionResult<ResponseResult>> CreateItem(ItemData data)
         {
             if (ModelState.IsValid)
             {
                 await _context.Payments.AddAsync(data);
                 await _context.SaveChangesAsync();
 
-                return CreatedAtAction("GetItem", new { data.id }, data);
+                // return CreatedAtAction("GetItem", new { data.id }, data);
+                return new ResponseResult()
+                {
+                    Success = true,
+                    Method = "Insert",
+                    Data = CreatedAtAction("GetItem", new { data.id }, data).Value,
+                };
             }
 
-            return new JsonResult("Something went wrong") { StatusCode = 500 };
+            return BadRequest(new ResponseResult()
+            {
+                Success = false,
+                Method = "Insert",
+                Errors = "Failed to insert data"
+            });
         }
 
         [HttpGet("{id}")]
-        public async Task<ActionResult> GetItem(int id)
+        public async Task<ActionResult<ResponseResult>> GetItem(int id)
         {
             var item = await _context.Payments.FirstOrDefaultAsync(x => x.id == id);
 
             if (item == null)
             {
-                return NotFound();
+                return NotFound(new ResponseResult()
+                {
+                    Success = false,
+                    Method = "Search",
+                    Errors = "data with id " + id + " not found"
+                });
             }
 
-            return Ok(item);
+            return new ResponseResult()
+            {
+                Success = true,
+                Method = "Search",
+                Data = item
+            }; ;
         }
 
         [HttpPut("{id}")]
-        public async Task<ActionResult> UpdateItem(int id, ItemData item)
+        public async Task<ActionResult<ResponseResult>> UpdateItem(int id, ItemData item)
         {
             if (id != item.id)
-                return BadRequest();
+            {
+                return BadRequest(new ResponseResult()
+                {
+                    Success = false,
+                    Method = "Update",
+                    Errors = "id on entrypoint is not the same as id on body"
+                });
+            }
             var existItem = await _context.Payments.FirstOrDefaultAsync(x => x.id == id);
 
             if (existItem == null)
-                return NotFound();
+            {
+                return NotFound(new ResponseResult()
+                {
+                    Success = false,
+                    Method = "Update",
+                    Errors = existItem.id + "Not Found"
+                });
+            }
             existItem.cardOwnerName = item.cardOwnerName;
             existItem.cardNumber = item.cardNumber;
             existItem.expirationDate = item.expirationDate;
@@ -71,22 +106,38 @@ namespace PaymentAPI.Controllers
 
             await _context.SaveChangesAsync();
 
-            return Ok(existItem);
+            return new ResponseResult()
+            {
+                Success = true,
+                Method = "Update",
+                Data = existItem
+            };
 
         }
 
         [HttpDelete("{id}")]
-        public async Task<ActionResult> DeleteItem(int id)
+        public async Task<ActionResult<ResponseResult>> DeleteItem(int id)
         {
             var existItem = await _context.Payments.FirstOrDefaultAsync(x => x.id == id);
 
             if (existItem == null)
-                return NotFound();
-
+            {
+                return NotFound(new ResponseResult()
+                {
+                    Success = false,
+                    Method = "Search",
+                    Errors = "data with id " + id + " not found"
+                });
+            }
             _context.Payments.Remove(existItem);
             await _context.SaveChangesAsync();
 
-            return new JsonResult("Success Delete " + id) { StatusCode = 200 };
+            return new ResponseResult()
+            {
+                Success = true,
+                Method = "Delete",
+                Data = existItem
+            };
         }
     }
 }

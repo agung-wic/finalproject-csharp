@@ -6,7 +6,7 @@ namespace PaymentAPI.Configuration
     {
         public bool Success { get; set; }
         public string Method { get; set; }
-        public List<string> Data { get; set; }
-        public List<string> Errors { get; set; }
+        public object Data { get; set; }
+        public string Errors { get; set; }
     }
 }
