@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PaymentAPI.Data;
 using PaymentAPI.Models;
+using PaymentAPI.Configuration;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -85,7 +86,7 @@ namespace PaymentAPI.Controllers
             _context.Payments.Remove(existItem);
             await _context.SaveChangesAsync();
 
-            return new JsonResult("Success Delete" + id) { StatusCode = 200 };
+            return new JsonResult("Success Delete " + id) { StatusCode = 200 };
         }
     }
 }
