@@ -22,6 +22,8 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
+using Microsoft.AspNetCore.StaticFiles;
+
 namespace PaymentAPI
 {
     public class Startup
@@ -115,6 +117,13 @@ namespace PaymentAPI
                 app.UseSwagger();
                 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "PaymentAPI v1"));
             }
+
+            app.UseDefaultFiles(new DefaultFilesOptions
+            {
+                DefaultFileNames = new
+    List<string> { "index.html" }
+            });
+            app.UseStaticFiles();
 
             app.UseHttpsRedirection();
 
