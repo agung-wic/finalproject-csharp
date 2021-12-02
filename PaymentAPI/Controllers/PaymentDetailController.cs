@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using PaymentAPI.Data;
 using PaymentAPI.Models;
 using PaymentAPI.Configuration;
+using System.Collections.Generic;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -22,10 +23,15 @@ namespace PaymentAPI.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetItems()
+        public async Task<ActionResult<ResponseResult>> GetItems()
         {
             var items = await _context.Payments.ToListAsync();
-            return Ok(items);
+            return new ResponseResult()
+            {
+                Success = true,
+                Method = "Show",
+                Data = new List<object>(items),
+            };
         }
 
         [HttpPost]
@@ -41,7 +47,10 @@ namespace PaymentAPI.Controllers
                 {
                     Success = true,
                     Method = "Insert",
-                    Data = CreatedAtAction("GetItem", new { data.id }, data).Value,
+                    Data = new List<object>()
+                    {
+                        CreatedAtAction("GetItem", new { data.id }, data).Value
+                    },
                 };
             }
 
@@ -72,7 +81,10 @@ namespace PaymentAPI.Controllers
             {
                 Success = true,
                 Method = "Search",
-                Data = item
+                Data = new List<object>()
+                {
+                    item
+                }
             }; ;
         }
 
@@ -85,7 +97,7 @@ namespace PaymentAPI.Controllers
                 {
                     Success = false,
                     Method = "Update",
-                    Errors = "id on entrypoint is not the same as id on body"
+                    Errors = "id on endpoint is not the same as id on body"
                 });
             }
             var existItem = await _context.Payments.FirstOrDefaultAsync(x => x.id == id);
@@ -110,7 +122,10 @@ namespace PaymentAPI.Controllers
             {
                 Success = true,
                 Method = "Update",
-                Data = existItem
+                Data = new List<object>()
+                {
+                    existItem
+                }
             };
 
         }
@@ -136,7 +151,10 @@ namespace PaymentAPI.Controllers
             {
                 Success = true,
                 Method = "Delete",
-                Data = existItem
+                Data = new List<object>()
+                {
+                    existItem
+                }
             };
         }
     }
