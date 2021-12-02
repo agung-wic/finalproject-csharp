@@ -99,7 +99,7 @@ namespace PaymentAPI.Controllers
                     new Claim(JwtRegisteredClaimNames.Sub, user.Email),
                     new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
                 }),
-                Expires = DateTime.UtcNow.AddMinutes(10),
+                Expires = DateTime.UtcNow.AddMinutes(5),
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
             };
 
@@ -214,6 +214,8 @@ namespace PaymentAPI.Controllers
         {
             var jwtTokenHandler = new JwtSecurityTokenHandler();
 
+            var storedToken = await _apiDbContext.RefreshTokens.FirstOrDefaultAsync(x => x.Token == tokenRequest.RefreshToken);
+
             try
             {
                 // validation 1 - validation jwt token format
@@ -245,7 +247,7 @@ namespace PaymentAPI.Controllers
                 }
 
                 // validation 4 - validate existence of the token
-                var storedToken = await _apiDbContext.RefreshTokens.FirstOrDefaultAsync(x => x.Token == tokenRequest.RefreshToken);
+                // var storedToken = await _apiDbContext.RefreshTokens.FirstOrDefaultAsync(x => x.Token == tokenRequest.RefreshToken);
 
                 if (storedToken == null)
                 {
@@ -309,13 +311,20 @@ namespace PaymentAPI.Controllers
             {
                 if (ex.Message.Contains("Lifetime validation failed. The token is expired."))
                 {
-                    return new AuthResult()
-                    {
-                        Success = false,
-                        Errors = new List<string>() {
-                            "Token has expired please re-login"
-                        }
-                    };
+                    // return new AuthResult()
+                    // {
+                    //     Success = false,
+                    //     Errors = new List<string>() {
+                    //         "Token has expired please re-login"
+                    //     }
+                    // };
+                    storedToken.IsUsed = true;
+                    _apiDbContext.RefreshTokens.Update(storedToken);
+                    await _apiDbContext.SaveChangesAsync();
+
+                    // generate a new token
+                    var dbUser = await _userManager.FindByIdAsync(storedToken.UserId);
+                    return await GenerateJwtToken(dbUser);
                 }
                 else
                 {
