@@ -17,10 +17,13 @@ using PaymentAPI.Data;
 using Microsoft.EntityFrameworkCore;
 using PaymentAPI.Models;
 
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+
 namespace PaymentAPI.Controllers
 {
     [Route("api/[controller]")]
-    [ApiController]
+    // [ApiController]
     public class AuthManagementController : ControllerBase
     {
         private readonly UserManager<IdentityUser> _userManager;
@@ -63,9 +66,13 @@ namespace PaymentAPI.Controllers
                 var isCreated = await _userManager.CreateAsync(newUser, user.Password);
                 if (isCreated.Succeeded)
                 {
-                    var jwtToken = await GenerateJwtToken(newUser);
+                    // var jwtToken = GenerateJwtToken(newUser);
 
-                    return Ok(jwtToken);
+                    return Ok(new RegistrationResponse()
+                    {
+                        Success = true,
+                        Messages = "Register Success"
+                    });
                 }
                 else
                 {
@@ -86,7 +93,7 @@ namespace PaymentAPI.Controllers
             });
         }
 
-        private async Task<AuthResult> GenerateJwtToken(IdentityUser user)
+        private NewRefreshToken GenerateJwtToken(IdentityUser user)
         {
             var jwtTokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.ASCII.GetBytes(_jwtConfig.Secret);
@@ -99,14 +106,14 @@ namespace PaymentAPI.Controllers
                     new Claim(JwtRegisteredClaimNames.Sub, user.Email),
                     new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
                 }),
-                Expires = DateTime.UtcNow.AddMinutes(5),
+                Expires = DateTime.UtcNow.AddHours(1),
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
             };
 
             var token = jwtTokenHandler.CreateToken(tokenDescriptor);
             var jwtToken = jwtTokenHandler.WriteToken(token);
 
-            var refreshToken = new RefreshToken()
+            return new NewRefreshToken()
             {
                 JwtId = token.Id,
                 IsUsed = false,
@@ -114,18 +121,20 @@ namespace PaymentAPI.Controllers
                 UserId = user.Id,
                 AddedDate = DateTime.UtcNow,
                 ExpiryDate = DateTime.UtcNow.AddMonths(6),
-                Token = RandomString(35) + Guid.NewGuid()
+                refreshToken = RandomString(35) + Guid.NewGuid(),
+                Token = jwtToken
             };
 
-            await _apiDbContext.RefreshTokens.AddAsync(refreshToken);
-            await _apiDbContext.SaveChangesAsync();
+            // await _apiDbContext.RefreshTokens.AddAsync(refreshToken);
+            // await _apiDbContext.SaveChangesAsync();
 
-            return new AuthResult()
-            {
-                Token = jwtToken,
-                Success = true,
-                RefreshToken = refreshToken.Token
-            };
+            // return new AuthResult()
+            // {
+            //     Token = jwtToken,
+            //     Success = true,
+            //     RefreshToken = refreshToken.Token,
+            //     UserId = refreshToken.UserId
+            // };
             // return jwtToken;
         }
 
@@ -168,9 +177,52 @@ namespace PaymentAPI.Controllers
                     });
                 }
 
-                var jwtToken = await GenerateJwtToken(existingUser);
+                var everLoggedIn = await _apiDbContext.RefreshTokens.FirstOrDefaultAsync(x => x.UserId == existingUser.Id);
 
-                return Ok(jwtToken); ;
+                var jwtToken = GenerateJwtToken(existingUser);
+
+                if (everLoggedIn != null)
+                {
+
+                    everLoggedIn.Token = jwtToken.refreshToken;
+                    everLoggedIn.IsRevorked = false;
+
+                    await _apiDbContext.SaveChangesAsync();
+
+                    return Ok(new AuthResult()
+                    {
+                        Token = jwtToken.Token,
+                        RefreshToken = jwtToken.refreshToken,
+                        Success = true,
+                        Messages = "Successfully Re-Login",
+                        UserId = jwtToken.UserId
+                    });
+                }
+                else
+                {
+                    var newData = new RefreshToken()
+                    {
+                        JwtId = jwtToken.JwtId,
+                        IsUsed = false,
+                        IsRevorked = false,
+                        UserId = jwtToken.UserId,
+                        AddedDate = jwtToken.AddedDate,
+                        ExpiryDate = jwtToken.ExpiryDate,
+                        Token = jwtToken.refreshToken,
+
+                    };
+
+                    await _apiDbContext.RefreshTokens.AddAsync(newData);
+                    await _apiDbContext.SaveChangesAsync();
+
+                    return Ok(new AuthResult{
+                        Success = true,
+                        Messages = "Successfully Login",
+                        Token = jwtToken.Token,
+                        RefreshToken = jwtToken.refreshToken,
+                        UserId = jwtToken.UserId
+                    });
+                }
             }
             return BadRequest(new RegistrationResponse()
             {
@@ -180,8 +232,39 @@ namespace PaymentAPI.Controllers
                 Success = false
             });
         }
-        [HttpPost]
-        [Route("RefreshToken")]
+
+        [HttpDelete]
+        [Route("Logout/{id}")]
+        [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme)]
+        public async Task<IActionResult> Logout(string id)
+        {
+            var storedToken = await _apiDbContext.RefreshTokens.FirstOrDefaultAsync(x => x.UserId == id);
+
+            if (storedToken == null)
+            {
+                return NotFound(new AuthResult()
+                {
+                    Success = false,
+                    Errors = new List<string>() { storedToken.UserId + "Not Found" }
+                });
+            }
+
+            _apiDbContext.RefreshTokens.Remove(storedToken);
+
+            await _apiDbContext.SaveChangesAsync();
+
+            return Ok(new AuthResult()
+            {
+                Success = true,
+                Messages = "Successfully Logout"
+            });
+
+
+
+        }
+
+        // [HttpPost]
+        // [Route("RefreshToken")]
         public async Task<IActionResult> RefreshToken([FromBody] TokenRequest tokenRequest)
         {
             if (ModelState.IsValid)
@@ -305,7 +388,14 @@ namespace PaymentAPI.Controllers
 
                 // generate a new token
                 var dbUser = await _userManager.FindByIdAsync(storedToken.UserId);
-                return await GenerateJwtToken(dbUser);
+                var tokenResult = GenerateJwtToken(dbUser);
+                return new AuthResult()
+                {
+                    Token = tokenResult.Token,
+                    Success = true,
+                    RefreshToken = tokenResult.refreshToken,
+                    UserId = tokenResult.UserId
+                };
             }
             catch (Exception ex)
             {
@@ -324,7 +414,14 @@ namespace PaymentAPI.Controllers
 
                     // generate a new token
                     var dbUser = await _userManager.FindByIdAsync(storedToken.UserId);
-                    return await GenerateJwtToken(dbUser);
+                    var tokenResult = GenerateJwtToken(dbUser);
+                    return new AuthResult()
+                    {
+                        Token = tokenResult.Token,
+                        Success = true,
+                        RefreshToken = tokenResult.refreshToken,
+                        UserId = tokenResult.UserId
+                    };
                 }
                 else
                 {

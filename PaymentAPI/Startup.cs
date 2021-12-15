@@ -78,6 +78,7 @@ namespace PaymentAPI
                 options.UseMySQL(
                     Configuration.GetConnectionString("myconn")
                 ));
+                
 
             services.AddControllers();
             services.AddSwaggerGen(c =>
@@ -117,6 +118,13 @@ namespace PaymentAPI
                 app.UseSwagger();
                 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "PaymentAPI v1"));
             }
+
+            app.UseCors( x => x
+                .AllowAnyOrigin()
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                // .AllowCredentials()
+            );
 
             app.UseDefaultFiles(new DefaultFilesOptions
             {
